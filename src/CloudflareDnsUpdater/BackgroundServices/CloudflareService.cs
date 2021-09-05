@@ -34,6 +34,7 @@ namespace CloudflareDnsUpdater.BackgroundServices
                 {
                     _logger.LogError(ex, "Exception on CloudflareService - ExecuteAsync");
                 }
+                GC.Collect();
                 await Task.Delay(TimeSpan.FromMinutes(_configuration.GetValue<int>("Delay")), stoppingToken);
             }
         }
