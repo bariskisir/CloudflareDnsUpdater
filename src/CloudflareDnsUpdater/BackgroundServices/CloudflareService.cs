@@ -25,9 +25,9 @@ namespace CloudflareDnsUpdater.BackgroundServices
         {
             while (!stoppingToken.IsCancellationRequested)
             {
-                _logger.LogInformation("CloudflareService running at: {time}", DateTimeOffset.Now);
                 try
                 {
+                    _logger.LogInformation("CloudflareService running at: {time}", DateTimeOffset.Now);
                     this.Run();
                 }
                 catch (Exception ex)
@@ -40,8 +40,7 @@ namespace CloudflareDnsUpdater.BackgroundServices
         }
         private void Run()
         {
-            var selectedDomainsConfValue = _configuration.GetValue<string>("Domain");
-            var selectedDomains = selectedDomainsConfValue.Split(' ').ToList();
+            var selectedDomains = _configuration.GetValue<string>("Domain").Split(' ').ToList();
             var token = _configuration.GetValue<string>("Token");
             var client = this.GetClient(token);
             var myIp = IpHelper.GetIp();
@@ -53,21 +52,26 @@ namespace CloudflareDnsUpdater.BackgroundServices
                                                          .Where(x => selectedDomains.Contains(x.name)).ToList();
                 foreach (var filteredDnsRecordItem in filteredDnsRecordList)
                 {
-                    if (myIp != filteredDnsRecordItem.content)
+                    if (!string.IsNullOrWhiteSpace(myIp) && !string.IsNullOrWhiteSpace(filteredDnsRecordItem.content) &&  myIp != filteredDnsRecordItem.content)
                     {
-                        this.UpdateDnsRecord(client, myIp, zoneIdItem, filteredDnsRecordItem.id);
-                        _logger.LogInformation("{name} domain is updated. Old ip - {content} New ip - {myIp}", filteredDnsRecordItem.name, filteredDnsRecordItem.content, myIp);
+                        if (this.UpdateDnsRecord(client, myIp, zoneIdItem, filteredDnsRecordItem.id))
+                        {
+                            _logger.LogInformation("{name} domain is updated. Old ip - {content} New ip - {myIp}", filteredDnsRecordItem.name, filteredDnsRecordItem.content, myIp);
+                        }
                     }
                 }
             }
         }
-        private void UpdateDnsRecord(RestClient client, string myIp, string zoneIdItem, string dnsRecordId)
+        private bool UpdateDnsRecord(RestClient client, string myIp, string zoneIdItem, string dnsRecordId)
         {
             var dnsRecordRequest = new DnsRecordRequest() { content = myIp };
             var updateDnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records/{dnsRecordId}", Method.PATCH);
             updateDnsRecordsRequest.RequestFormat = DataFormat.Json;
             updateDnsRecordsRequest.AddJsonBody(dnsRecordRequest);
-            client.Execute(updateDnsRecordsRequest);
+            var updateDnsRecordResponse = client.Execute(updateDnsRecordsRequest);
+            var updateDnsRecordContent = updateDnsRecordResponse.Content;
+            var updateDnsRecordResult = JsonConvert.DeserializeObject<UpdateDnsRecordResponse>(updateDnsRecordContent);
+            return updateDnsRecordResult.success;
         }
         private List<DnsRecord> GetDnsRecords(RestClient client, string zoneIdItem)
         {
