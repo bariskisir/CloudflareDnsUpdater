@@ -1,4 +1,5 @@
 ﻿using RestSharp;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Net;
@@ -23,14 +24,21 @@ namespace CloudflareDnsUpdater.Helpers
             var ip = string.Empty;
             foreach (var ipAddressProviderItem in IpAddressProviders)
             {
-                var client = new RestClient(ipAddressProviderItem);
-                var request = new RestRequest(Method.GET);
-                var response = client.Execute(request);
-                var content = response.Content;
-                if (IsValidIp(content))
+                try
                 {
-                    ip = content;
-                    break;
+                    var client = new RestClient(ipAddressProviderItem);
+                    var request = new RestRequest(Method.GET);
+                    var response = client.Execute(request);
+                    var content = response.Content;
+                    if (IsValidIp(content))
+                    {
+                        ip = content;
+                        break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Exception on IpHelper - GetIp - {ipAddressProviderItem}", ipAddressProviderItem);
                 }
             }
             if (string.IsNullOrWhiteSpace(ip))
@@ -39,7 +47,7 @@ namespace CloudflareDnsUpdater.Helpers
             }
             return ip;
         }
-        private static bool IsValidIp(string ip) 
+        private static bool IsValidIp(string ip)
         {
             var result = false;
             if (IPAddress.TryParse(ip, out _))
