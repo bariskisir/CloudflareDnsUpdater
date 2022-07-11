@@ -1,5 +1,5 @@
 # Cloudflare Dns Updater
-CloudflareDnsUpdater is a background service running on .NET 5. This service frequently checks domains' A records and update them with the current IP address.
+CloudflareDnsUpdater is a background service running on .NET 6 This service frequently checks domains' A records and update them with the current IP address.
 It is designed to be used for hosting applications with dynamic ip address.
 
 ## Usage
@@ -12,6 +12,6 @@ Token is required.  Create "All zones - DNS:Edit" token from cloudflare. [How to
 
 Domains are required.
 
-Delay is optional.
+Delay is optional (minute).
 
 [Dockerhub](https://hub.docker.com/r/bariskisir/cloudflarednsupdater)

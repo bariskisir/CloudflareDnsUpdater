@@ -65,7 +65,7 @@ namespace CloudflareDnsUpdater.BackgroundServices
         private bool UpdateDnsRecord(RestClient client, string myIp, string zoneIdItem, string dnsRecordId)
         {
             var dnsRecordRequest = new DnsRecordRequest() { content = myIp };
-            var updateDnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records/{dnsRecordId}", Method.PATCH);
+            var updateDnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records/{dnsRecordId}", Method.Patch);
             updateDnsRecordsRequest.RequestFormat = DataFormat.Json;
             updateDnsRecordsRequest.AddJsonBody(dnsRecordRequest);
             var updateDnsRecordResponse = client.Execute(updateDnsRecordsRequest);
@@ -75,7 +75,7 @@ namespace CloudflareDnsUpdater.BackgroundServices
         }
         private List<DnsRecord> GetDnsRecords(RestClient client, string zoneIdItem)
         {
-            var dnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records", Method.GET);
+            var dnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records", Method.Get);
             var dnsRecordsResponse = client.Execute(dnsRecordsRequest);
             var dnsRecordsContent = dnsRecordsResponse.Content;
             var dnsRecordResponse = JsonConvert.DeserializeObject<DnsRecordsResponse>(dnsRecordsContent);
@@ -84,7 +84,7 @@ namespace CloudflareDnsUpdater.BackgroundServices
         }
         private List<string> GetZoneIdList(RestClient client)
         {
-            var zonesRequest = new RestRequest("zones", Method.GET);
+            var zonesRequest = new RestRequest("zones", Method.Get);
             var zonesResponse = client.Execute(zonesRequest);
             var zonesContent = zonesResponse.Content;
             var zones = JsonConvert.DeserializeObject<ZonesResponse>(zonesContent);

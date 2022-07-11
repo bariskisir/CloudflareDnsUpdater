@@ -27,7 +27,7 @@ namespace CloudflareDnsUpdater.Helpers
                 try
                 {
                     var client = new RestClient(ipAddressProviderItem);
-                    var request = new RestRequest(Method.GET);
+                    var request = new RestRequest(string.Empty, Method.Get);
                     var response = client.Execute(request);
                     var content = response.Content;
                     if (IsValidIp(content))
