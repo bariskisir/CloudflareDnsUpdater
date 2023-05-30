@@ -1,12 +1,11 @@
-﻿using CloudflareDnsUpdater.Helpers;
-using CloudflareDnsUpdater.Models;
-using Microsoft.Extensions.Configuration;
+﻿using CloudFlare.Client;
+using CloudFlare.Client.Api.Zones.DnsRecord;
+using CloudFlare.Client.Enumerators;
+using CloudflareDnsUpdater.Helpers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Newtonsoft.Json;
-using RestSharp;
+using Microsoft.Extensions.Options;
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -15,11 +14,11 @@ namespace CloudflareDnsUpdater.BackgroundServices
     public class CloudflareService : BackgroundService
     {
         private readonly ILogger<CloudflareService> _logger;
-        private readonly IConfiguration _configuration;
-        public CloudflareService(ILogger<CloudflareService> logger, IConfiguration configuration)
+        private readonly AppSettings _appSettings;
+        public CloudflareService(ILogger<CloudflareService> logger, IOptions<AppSettings> appSettings)
         {
             _logger = logger;
-            _configuration = configuration;
+            _appSettings = appSettings.Value;
         }
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
@@ -28,75 +27,44 @@ namespace CloudflareDnsUpdater.BackgroundServices
                 try
                 {
                     _logger.LogInformation("CloudflareService running at: {time}", DateTimeOffset.Now);
-                    this.Run();
+                    this.Run(stoppingToken);
                 }
                 catch (Exception ex)
                 {
                     _logger.LogError(ex, "Exception on CloudflareService - ExecuteAsync");
                 }
                 GC.Collect();
-                await Task.Delay(TimeSpan.FromMinutes(_configuration.GetValue<int>("Delay")), stoppingToken);
+                await Task.Delay(TimeSpan.FromMinutes(_appSettings.Delay), stoppingToken);
             }
         }
-        private void Run()
+        private void Run(CancellationToken stoppingToken)
         {
-            var selectedDomains = _configuration.GetValue<string>("Domain").Split(' ').ToList();
-            var token = _configuration.GetValue<string>("Token");
-            var client = this.GetClient(token);
+            var selectedDomains = _appSettings.Domain.Split(' ').ToList();
+            var client = new CloudFlareClient(_appSettings.Token);
             var myIp = IpHelper.GetIp();
-            var zoneIdList = this.GetZoneIdList(client);
-            foreach (var zoneIdItem in zoneIdList)
+            var zoneList = client.Zones.GetAsync(cancellationToken: stoppingToken).Result;
+            foreach (var zoneItem in zoneList.Result)
             {
-                var dnsRecordList = this.GetDnsRecords(client, zoneIdItem);
-                var filteredDnsRecordList = dnsRecordList.Where(x => x.type == "A")
-                                                         .Where(x => selectedDomains.Contains(x.name)).ToList();
-                foreach (var filteredDnsRecordItem in filteredDnsRecordList)
+                var aDnsRecords = client.Zones.DnsRecords.GetAsync(zoneItem.Id, new DnsRecordFilter { Type = DnsRecordType.A }, null, stoppingToken).Result;
+                var filteredRecords = aDnsRecords.Result.Where(x => selectedDomains.Contains(x.Name)).ToList();
+                foreach (var filteredRecord in filteredRecords)
                 {
-                    if (!string.IsNullOrWhiteSpace(myIp) && !string.IsNullOrWhiteSpace(filteredDnsRecordItem.content) &&  myIp != filteredDnsRecordItem.content)
+                    if (!string.IsNullOrWhiteSpace(myIp) && !string.IsNullOrWhiteSpace(filteredRecord.Content) && myIp != filteredRecord.Content)
                     {
-                        if (this.UpdateDnsRecord(client, myIp, zoneIdItem, filteredDnsRecordItem.id))
+                        var modified = new ModifiedDnsRecord
                         {
-                            _logger.LogInformation("{name} domain is updated. Old ip - {content} New ip - {myIp}", filteredDnsRecordItem.name, filteredDnsRecordItem.content, myIp);
+                            Type = DnsRecordType.A,
+                            Name = filteredRecord.Name,
+                            Content = myIp,
+                        };
+                        var updateResult = client.Zones.DnsRecords.UpdateAsync(zoneItem.Id, filteredRecord.Id, modified, stoppingToken).Result;
+                        if (updateResult.Success)
+                        {
+                            _logger.LogInformation("{Name} domain is updated. Old ip - {content} New ip - {myIp}", filteredRecord.Name, filteredRecord.Content, myIp);
                         }
                     }
                 }
             }
-        }
-        private bool UpdateDnsRecord(RestClient client, string myIp, string zoneIdItem, string dnsRecordId)
-        {
-            var dnsRecordRequest = new DnsRecordRequest() { content = myIp };
-            var updateDnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records/{dnsRecordId}", Method.Patch);
-            updateDnsRecordsRequest.RequestFormat = DataFormat.Json;
-            updateDnsRecordsRequest.AddJsonBody(dnsRecordRequest);
-            var updateDnsRecordResponse = client.Execute(updateDnsRecordsRequest);
-            var updateDnsRecordContent = updateDnsRecordResponse.Content;
-            var updateDnsRecordResult = JsonConvert.DeserializeObject<UpdateDnsRecordResponse>(updateDnsRecordContent);
-            return updateDnsRecordResult.success;
-        }
-        private List<DnsRecord> GetDnsRecords(RestClient client, string zoneIdItem)
-        {
-            var dnsRecordsRequest = new RestRequest($"zones/{zoneIdItem}/dns_records", Method.Get);
-            var dnsRecordsResponse = client.Execute(dnsRecordsRequest);
-            var dnsRecordsContent = dnsRecordsResponse.Content;
-            var dnsRecordResponse = JsonConvert.DeserializeObject<DnsRecordsResponse>(dnsRecordsContent);
-            var dnsRecordList = dnsRecordResponse.result;
-            return dnsRecordList;
-        }
-        private List<string> GetZoneIdList(RestClient client)
-        {
-            var zonesRequest = new RestRequest("zones", Method.Get);
-            var zonesResponse = client.Execute(zonesRequest);
-            var zonesContent = zonesResponse.Content;
-            var zones = JsonConvert.DeserializeObject<ZonesResponse>(zonesContent);
-            var zoneIdList = zones.result.Select(x => x.id).ToList();
-            return zoneIdList;
-        }
-        private RestClient GetClient(string token)
-        {
-            var baseApiUrl = "https://api.cloudflare.com/client/v4/";
-            var client = new RestClient($"{baseApiUrl}");
-            client.AddDefaultHeader("Authorization", $"Bearer {token}");
-            return client;
         }
     }
 }

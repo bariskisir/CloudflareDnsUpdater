@@ -1,15 +1,14 @@
-﻿using RestSharp;
-using Serilog;
+﻿using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Net;
-
+using System.Net.Http;
 namespace CloudflareDnsUpdater.Helpers
 {
     public static class IpHelper
     {
-        public static List<string> IpAddressProviders = new List<string>() 
-        { 
+        public static List<string> IpAddressProviders = new List<string>()
+        {
             "https://api.ipify.org",
             "http://ipv4bot.whatismyipaddress.com",
             "http://icanhazip.com",
@@ -18,7 +17,6 @@ namespace CloudflareDnsUpdater.Helpers
             "https://ipecho.net/plain",
             "https://checkip.amazonaws.com"
         };
-
         public static string GetIp()
         {
             var ip = string.Empty;
@@ -26,13 +24,11 @@ namespace CloudflareDnsUpdater.Helpers
             {
                 try
                 {
-                    var client = new RestClient(ipAddressProviderItem);
-                    var request = new RestRequest(string.Empty, Method.Get);
-                    var response = client.Execute(request);
-                    var content = response.Content;
-                    if (IsValidIp(content))
+                    var httpClient = new HttpClient();
+                    var response = httpClient.GetStringAsync(ipAddressProviderItem).Result;
+                    if (IsValidIp(response))
                     {
-                        ip = content;
+                        ip = response;
                         break;
                     }
                 }

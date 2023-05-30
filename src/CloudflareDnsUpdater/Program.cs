@@ -11,17 +11,19 @@ namespace CloudflareDnsUpdater
     {
         public static void Main(string[] args)
         {
-            var builder = new ConfigurationBuilder();
-            builder.SetBasePath(AppContext.BaseDirectory)
+            var configurationBuilder = new ConfigurationBuilder();
+            configurationBuilder.SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .AddEnvironmentVariables();
 
+            var config = configurationBuilder.Build();
+
             Log.Logger = new LoggerConfiguration()
-                .ReadFrom.Configuration(builder.Build())
+                .ReadFrom.Configuration(configurationBuilder.Build())
                 .Enrich.FromLogContext()
                 .MinimumLevel.Information()
                 .WriteTo.Console()
-                .WriteTo.File("log_.txt", rollingInterval: RollingInterval.Day)
+                .WriteTo.File("logs//log_.txt", rollingInterval: RollingInterval.Day)
                 .CreateLogger();
 
             Host.CreateDefaultBuilder()
@@ -29,6 +31,7 @@ namespace CloudflareDnsUpdater
                 .ConfigureServices((context, services) =>
                 {
                     services.AddHostedService<CloudflareService>();
+                    services.Configure<AppSettings>(config);
                 })
                 .UseSerilog()
                 .Build()
