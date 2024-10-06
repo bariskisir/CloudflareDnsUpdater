@@ -1,4 +1,3 @@
-using Autofac.Extensions.DependencyInjection;
 using CloudflareDnsUpdater.BackgroundServices;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -27,7 +26,6 @@ namespace CloudflareDnsUpdater
                 .CreateLogger();
 
             Host.CreateDefaultBuilder()
-                .UseServiceProviderFactory(new AutofacServiceProviderFactory())
                 .ConfigureServices((context, services) =>
                 {
                     services.AddHostedService<CloudflareService>();
